@@ -156,8 +156,11 @@ module Mongoid::Acts::NestedSet
 
       # Returns true if this is a leaf node
       def leaf?
+
         #!new_record? && right - left == 1
+        return false if right.nil? || left.nil?
         right - left == 1
+
       end
 
 

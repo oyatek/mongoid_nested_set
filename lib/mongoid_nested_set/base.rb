@@ -23,13 +23,15 @@ module Mongoid::Acts::NestedSet
     # Mongoid::Acts::NestedSet::InstanceMethods for a list of instance methods added to
     # acts_as_nested_set models
     def acts_as_nested_set(options = {})
+
       options = {
-        :parent_field => 'parent_id',
-        :left_field => 'lft',
-        :right_field => 'rgt',
+        :parent_field         => 'parent_id',
+        :left_field           => 'lft',
+        :right_field          => 'rgt',
         :outline_number_field => nil,
-        :dependent => :delete_all, # or :destroy
-        :klass => self,
+        :dependent            => :delete_all, # or :destroy
+        :klass                => self
+
       }.merge(options)
 
       if options[:scope].is_a?(Symbol) && options[:scope].to_s !~ /_id$/
@@ -40,22 +42,39 @@ module Mongoid::Acts::NestedSet
       self.acts_as_nested_set_options = options
 
       unless self.is_a?(Document::ClassMethods)
+
         include Document
         include OutlineNumber if outline_number_field_name
 
-        field left_field_name, :type => Integer
-        field right_field_name, :type => Integer
-        field outline_number_field_name, :type => String if outline_number_field_name
-        field :depth, :type => Integer
+        if defined?(Moped::BSON)
+          field parent_field_name,        :type => Moped::BSON::ObjectId
+        else
+          field parent_field_name,        :type => BSON::ObjectId
+        end
+
+        field left_field_name,            :type => Integer
+        field right_field_name,           :type => Integer
+        field outline_number_field_name,  :type => String if outline_number_field_name
+        field :depth,                     :type => Integer
+
+        index({ depth: 1 }, { background: true })
+        index({ parent_field_name => 1 }, { background: true })
+
+        index(
+
+          {
+            left_field_name   =>  1,
+            right_field_name  =>  1
+          }, {
+            background: true
+          }
+
+        )
 
         has_many   :children, :class_name => self.name, :foreign_key => parent_field_name, :inverse_of => :parent, :order => left_field_name.to_sym.asc
         belongs_to :parent,   :class_name => self.name, :foreign_key => parent_field_name
 
         attr_accessor :skip_before_destroy
-
-        if accessible_attributes.blank?
-          attr_protected left_field_name.intern, right_field_name.intern
-        end
 
         define_callbacks :move, :terminator => "result == false"
 
@@ -66,25 +85,29 @@ module Mongoid::Acts::NestedSet
 
         # no assignment to structure fields
         [left_field_name, right_field_name].each do |field|
+
           module_eval <<-"end_eval", __FILE__, __LINE__
-                  def #{field}=(x)
-                    raise NameError, "Unauthorized assignment to #{field}: it's an internal field handled by acts_as_nested_set code, use move_to_* methods instead.", "#{field}"
-                  end
+            def #{field}=(x)
+              raise NameError, "Unauthorized assignment to #{field}: it's an internal field handled by acts_as_nested_set code, use move_to_* methods instead.", "#{field}"
+            end
           end_eval
+
         end
 
         scope :roots, lambda {
-          where(parent_field_name => nil).asc(left_field_name)
+          asc(left_field_name).where(parent_field_name => nil)
         }
         scope :leaves, lambda {
-          where("this.#{quoted_right_field_name} - this.#{quoted_left_field_name} == 1").asc(left_field_name)
+          asc(left_field_name).where("this.#{quoted_right_field_name} - this.#{quoted_left_field_name} == 1")
         }
         scope :with_depth, lambda { |level|
-          where(:depth => level).asc(left_field_name)
+          asc(left_field_name).where(:depth => level)
         }
 
       end
+
     end
+
   end
 
 end

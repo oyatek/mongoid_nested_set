@@ -46,12 +46,7 @@ module Mongoid::Acts::NestedSet
         include Document
         include OutlineNumber if outline_number_field_name
 
-        if defined?(Moped::BSON)
-          field parent_field_name,        :type => Moped::BSON::ObjectId
-        else
-          field parent_field_name,        :type => BSON::ObjectId
-        end
-
+        field parent_field_name,          :type => BSON::ObjectId
         field left_field_name,            :type => Integer
         field right_field_name,           :type => Integer
         field outline_number_field_name,  :type => String if outline_number_field_name

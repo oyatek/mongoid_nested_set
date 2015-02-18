@@ -73,7 +73,9 @@ module Mongoid::Acts::NestedSet
 
 
     def move_to(target, position)
-      raise Mongoid::Errors::MongoidError, "You cannot move a new node" if self.new_record?
+
+      # "You cannot move a new node"
+      position = :root if self.new_record?
 
       res = run_callbacks :move do
 
@@ -89,20 +91,17 @@ module Mongoid::Acts::NestedSet
         end
         self.reload_nested_set
 
-        unless position == :root || target
-          raise Mongoid::Errors::MongoidError, "Impossible move, target node cannot be found."
-        end
-
-        unless position == :root || move_possible?(target)
-          raise Mongoid::Errors::MongoidError, "Impossible move, target node cannot be inside moved tree."
+        # "Impossible move, target node cannot be found."
+        # "Impossible move, target node cannot be inside moved tree."
+        unless position == :root || target || move_possible?(target)
+          position = :root
         end
 
         bound = case position
                 when :child; target[right_field_name]
                 when :left;  target[left_field_name]
                 when :right; target[right_field_name] + 1
-                when :root;  1
-                else raise Mongoid::Errors::MongoidError, "Position should be :child, :left, :right or :root ('#{position}' received)."
+                else :root;  1
                 end
 
         old_parent = self[parent_field_name]
@@ -111,7 +110,7 @@ module Mongoid::Acts::NestedSet
                      when :root;  nil
                      else         target[parent_field_name]
                      end
-        
+
         left, right     = [self[left_field_name], self[right_field_name]]
         width, distance = [right - left + 1, bound - left]
         edge            = bound > right ? bound - 1 : bound
@@ -153,7 +152,7 @@ module Mongoid::Acts::NestedSet
           ).update_all("$inc" => { right_field_name => -width })
         end
 
-        self.set(parent_field_name, new_parent)
+        self.set(parent_field_name => new_parent)
         self.reload_nested_set
         self.update_self_and_descendants_depth
 
@@ -188,7 +187,7 @@ module Mongoid::Acts::NestedSet
     def update_self_and_descendants_depth
       if depth?
         scope_class.each_with_level(self_and_descendants) do |node, level|
-          node.with(:safe => true).set(:depth, level) unless node.depth == level
+          node.with(:safe => true).set(depth: level) unless node.depth == level
         end
         self.reload
       end

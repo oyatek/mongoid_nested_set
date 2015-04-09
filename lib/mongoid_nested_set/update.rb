@@ -153,7 +153,9 @@ module Mongoid::Acts::NestedSet
           ).update_all("$inc" => { right_field_name => -width })
         end
 
+        Rails.logger.info "test1"
         self.set(parent_field_name, new_parent)
+        Rails.logger.info "test2"
         self.reload_nested_set
         self.update_self_and_descendants_depth
 
